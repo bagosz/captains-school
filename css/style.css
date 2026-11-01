@@ -1,0 +1,583 @@
+/* Layout: the battle mat is the hero on the left; on the right a "rulebook margin": mission, orders, rules in play, profile, To Wound chart and the dice log. */
+/* Sizes are in rem so the whole UI scales together. 1rem is 16px (or the browser's default size) up to about 1920x1080
+   and grows on larger viewports, up to double. Part of it stays fixed so that browser zoom (Ctrl +/-) still works.
+   Canvas text in js/ui reads the same root size through uiScale(). */
+html{font-size:clamp(100%,50% + min(.4167vw,.74vh),200%)}
+:root{
+  --bg:#e5e8e0;
+  --panel:#f2f4ee;
+  --ink:#1c251f;
+  --muted:#58635a;
+  --line:#c5cbbf;
+  --accent:#8a5a10;
+  --accent-soft:#efe0c2;
+  --on-accent:#ffffff;
+  --good:#2c5d92;
+  --evil:#983828;
+  --ok:#2a7345;
+  --bad:#ad3326;
+  --die:#ffffff;
+  --die-line:#b6bdb0;
+  --scrim:rgba(14,19,16,.55);
+  --shadow:0 1px 0 rgba(0,0,0,.04),0 10px 28px rgba(28,40,30,.16);
+  --font-display:"Alegreya SC","Palatino Linotype",Georgia,serif;
+  --font-body:"Alegreya Sans","Segoe UI",system-ui,sans-serif;
+  --font-data:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#101512; --panel:#171e19; --ink:#e2e7dd; --muted:#97a398; --line:#2a342d;
+    --accent:#e2ab4b; --accent-soft:#3a2f19; --on-accent:#1b1406;
+    --good:#88b1e2; --evil:#ee8b75; --ok:#76c792; --bad:#f28474;
+    --die:#212a24; --die-line:#3a463e; --scrim:rgba(0,0,0,.6);
+    --shadow:0 1px 0 rgba(0,0,0,.3),0 12px 32px rgba(0,0,0,.5);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101512; --panel:#171e19; --ink:#e2e7dd; --muted:#97a398; --line:#2a342d;
+  --accent:#e2ab4b; --accent-soft:#3a2f19; --on-accent:#1b1406;
+  --good:#88b1e2; --evil:#ee8b75; --ok:#76c792; --bad:#f28474;
+  --die:#212a24; --die-line:#3a463e; --scrim:rgba(0,0,0,.6);
+  --shadow:0 1px 0 rgba(0,0,0,.3),0 12px 32px rgba(0,0,0,.5);
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:1rem/1.45 var(--font-body);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr);gap:.75rem;padding-inline:1rem;padding-block:.75rem .875rem}
+.top{display:flex;align-items:center;flex-wrap:wrap;gap:.625rem 1.375rem}
+.brand{font:700 1.375rem/1 var(--font-display);letter-spacing:.01em;white-space:nowrap}
+.brand span{display:none;margin-top:.3125rem;font:500 .75rem/1 var(--font-body);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.phases{display:flex;flex:1 1 22.5rem;min-width:0;margin:0;padding:0;list-style:none;gap:.25rem}
+.phases li{flex:1;min-width:0;padding:.375rem .25rem .4375rem;border-bottom:3px solid var(--line);font:700 .9375rem/1 var(--font-display);letter-spacing:.03em;color:var(--muted);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .2s,border-color .2s}
+.phases li.past{border-bottom-color:var(--accent-soft)}
+.phases li.on{color:var(--ink);border-bottom-color:var(--accent)}
+.turn{font:600 .875rem/1 var(--font-data);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Who has Priority this turn: Good blue, Evil red, outlined while it is still to be rolled. */
+.prio{font:700 .8125rem/1 var(--font-body);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;padding:.375rem .625rem;border-radius:4px;border:1px solid currentColor;color:var(--muted);cursor:help}
+.prio.good{background:var(--good);border-color:var(--good);color:var(--bg)}
+.prio.evil{background:var(--evil);border-color:var(--evil);color:var(--bg)}
+.tools{display:flex;gap:.5rem;align-items:center}
+/* While the computer plays the player's side, a tag in the top bar says so (a click hands the game back). */
+.autotag{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700}
+.tbtn{background:transparent;border:1px solid var(--line);border-radius:4px;padding:.4375rem .75rem;cursor:pointer;font-weight:500;white-space:nowrap}
+.tbtn:hover{border-color:var(--muted)}
+
+.main{display:grid;grid-template-columns:var(--col-left,19rem) minmax(0,1fr) var(--col-right,24rem);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"log mission side" "log board side";gap:.75rem 1.25rem;min-height:0}
+/* Column handles (js/ui/columns.js): each sits in the grid gap before column 2 or 3. */
+.split{grid-row:1 / -1;justify-self:start;position:relative;z-index:2;width:1.25rem;margin-left:-1.25rem;cursor:col-resize;touch-action:none;outline:none}
+.split-l{grid-column:2} .split-r{grid-column:3}
+.split::after{content:"";position:absolute;inset:0 auto 0 50%;width:.1875rem;transform:translateX(-50%);border-radius:.125rem;background:var(--accent);opacity:.12;transition:opacity .15s}
+.split::before{content:"";position:absolute;top:50%;left:50%;width:.4375rem;height:2.5rem;transform:translate(-50%,-50%);border-radius:.25rem;background:radial-gradient(circle,var(--muted) 1px,transparent 1.5px) 0 0/.4375rem .5rem;opacity:.7;z-index:1}
+.split:hover::after,.split:focus-visible::after{opacity:.55}
+.split.drag::after{opacity:1}
+body.col-drag{cursor:col-resize;user-select:none}
+.boardwrap{grid-area:board;position:relative;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center}
+#board{display:block;border-radius:4px;box-shadow:var(--shadow);cursor:crosshair;touch-action:pan-y;max-width:100%}
+/* Zoomed in, the board takes every touch (one finger moves the view, two pinch); dragging shows a grabbing hand. */
+#board.zoomed{touch-action:none}
+#board.panning{cursor:grabbing}
+.zoombar{position:absolute;top:.5rem;right:.5rem;z-index:2;display:flex;gap:.25rem}
+.zoombar .tbtn{min-width:2.25rem;padding:.3125rem .5rem;background:var(--panel);font:700 1rem/1 var(--font-data);opacity:.92}
+.zoombar .tbtn:disabled{opacity:.45;cursor:default}
+.zoombar .tool{font:600 .8125rem/1 var(--font-body)}
+.zoombar .tool[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent);opacity:1}
+#board.tooling{cursor:cell}
+.side{grid-area:side;display:flex;flex-direction:column;gap:1rem;min-height:0;min-width:0;overflow-y:auto;overflow-x:hidden;padding-right:.5rem;scrollbar-gutter:stable}
+.side > *{flex-shrink:0;min-width:0}
+.side > :first-child{padding-top:0;border-top:0}
+
+.eyebrow{margin:0;font:600 .75rem/1.2 var(--font-body);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.goal{margin:0}
+.tip{margin:.375rem 0 0;color:var(--muted);font-style:italic}
+.status{margin:.5rem 0 0;font:600 .875rem/1.3 var(--font-data);color:var(--accent);font-variant-numeric:tabular-nums}
+.status span{white-space:nowrap}
+
+/* Step 6 layout: the turn ladder, score pills and one Menu in the top bar; the mission as a strip above the board;
+   the reference column folds to a rail (wide screens) or is a sheet over the bottom of the screen (phones). */
+.ladder{flex:1 1 22.5rem;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:.125rem .75rem}
+.ladder .phases{flex:none}
+.phases li,.substeps li{cursor:pointer}
+.phases li:hover,.substeps li:hover{color:var(--ink)}
+.substeps[hidden]{display:flex!important;visibility:hidden}
+.substeps{display:flex;margin:0;padding:0;list-style:none;gap:.25rem;justify-content:flex-end}
+.substeps li{padding:.125rem .5rem;border-radius:999px;font:600 .75rem/1.3 var(--font-body);letter-spacing:.04em;color:var(--muted);border:1px solid var(--line)}
+.substeps li.past{border-color:var(--accent-soft)}
+.substeps li.on{color:var(--on-accent);background:var(--accent);border-color:var(--accent)}
+.score{display:flex;gap:.375rem;flex-wrap:wrap}
+.spill{font:600 .8125rem/1.2 var(--font-body);padding:.3125rem .5rem;border-radius:4px;border:1px solid var(--line);border-left:.1875rem solid var(--good);white-space:nowrap;cursor:help}
+.spill.evil{border-left-color:var(--evil)}
+.spill.broken{border-color:var(--bad);color:var(--bad)}
+.spill b{font-weight:700}
+.menu-dd{position:relative}
+.dd{position:absolute;right:0;top:calc(100% + .25rem);z-index:40;min-width:10rem;display:grid;padding:.25rem;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow)}
+.dd-item{appearance:none;background:none;border:0;border-radius:4px;padding:.5rem .75rem;text-align:left;cursor:pointer;font-weight:500}
+.dd-item:hover,.dd-item:focus-visible{background:var(--accent-soft)}
+.mission{grid-area:mission;min-width:0;padding:0 0 .375rem;border-top:0;border-bottom:1px solid var(--line)}
+/* Two fixed lines: the title with the objective, then the counters. The whole of each, the briefing and the tip are
+   in the Scenario tab (a click on the strip opens it), so the strip never changes height and the board keeps its size. */
+.m-head{display:flex;align-items:baseline;gap:.75rem;min-width:0}
+.mission h2{margin:0;flex:none;font:700 1.125rem/1.2 var(--font-display);cursor:pointer}
+.mission .goal{flex:1 1 auto;min-width:min(12rem,40%);margin:0;font-size:.875rem;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.mission .status{flex:0 1 auto;min-width:0;margin:0;font-size:.8125rem;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.mission .status span{white-space:nowrap}
+.m-tipbtn{margin-left:auto;flex:none;font-size:.875rem}
+.ref-fold{appearance:none;margin-left:auto;align-self:center;border:1px solid var(--line);border-radius:4px;background:transparent;color:var(--muted);width:1.75rem;height:1.75rem;cursor:pointer;font:700 1rem/1 var(--font-data)}
+.ref-fold::before{content:"«"}
+.ref-fold:hover{color:var(--ink);border-color:var(--muted)}
+.main.ref-folded{grid-template-columns:2.75rem minmax(0,1fr) var(--col-right,24rem)}
+.main.ref-folded .split-l{display:none}
+.main.ref-folded .logbox{overflow:hidden;padding-right:0}
+.main.ref-folded .ref-tabs{flex-direction:column;flex-wrap:nowrap;align-items:center;gap:.25rem;border-bottom:0;background:transparent}
+.main.ref-folded .ref-tab{writing-mode:vertical-rl;padding:.5rem .25rem;border-bottom:0;border-right:.1875rem solid transparent}
+.main.ref-folded .ref-tab[aria-selected="true"]{border-right-color:transparent;color:var(--muted)}
+.main.ref-folded .ref-fold{order:-1;margin:0 0 .25rem}
+.main.ref-folded .ref-fold::before{content:"»"}
+.main.ref-folded .ref-pane{display:none!important}
+.orders{display:grid;gap:.5rem;padding-top:.875rem;border-top:1px solid var(--line)}
+/* The orders keep a fixed share of the panel, so the dice tray below stays in one place however long the hint is. */
+.side > .orders{min-height:42%;align-content:start}
+.hint-title{font:700 1.125rem/1.1 var(--font-display)}
+.hint-body{margin:0}
+.preview{margin:0;min-height:1.4em;font:500 .9375rem/1.45 var(--font-body)}
+/* Fight choices in the panel: Combats to pick for the next roll, the Start again button while Pairing Off. */
+.cline{display:block;width:100%;margin:0 0 .25rem;padding:.3125rem .5rem;background:transparent;border:1px solid var(--line);border-radius:4px;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.cline:hover{border-color:var(--muted)}
+.cline.on{border-color:var(--ok);color:var(--ok)}
+.csplit{display:block;width:100%;margin-top:.375rem;text-align:left;white-space:normal;font-size:.875rem}
+.preview .fc{font-weight:600}
+.why{font-size:.875rem;margin-left:.25rem}
+.why-text{display:block;margin-top:.375rem;padding:.375rem .5rem;border-left:.1875rem solid var(--line);color:var(--muted);font-size:.9375rem;line-height:1.45}
+.why-text[hidden]{display:none}
+.pv-why{font-size:.875rem}
+.choices{display:grid;gap:.25rem;margin:0}
+.choices[hidden]{display:none}
+.choices .cline{margin:0}
+.hrow{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem .5rem;padding:.375rem .5rem;border:1px solid var(--line);border-radius:4px}
+.hname{display:flex;align-items:center;gap:.375rem;min-width:8rem;flex:1 1 8rem}
+.hacts{display:flex;flex-wrap:wrap;gap:.25rem}
+.hact{font-size:.875rem;padding:.25rem .5rem}
+.mpips{display:inline-flex;gap:.125rem}
+.mpips i{width:.5625rem;height:.5625rem;border-radius:50%;border:1px solid var(--muted);display:inline-block}
+.mpips i.on{background:#d9662f;border-color:#86391a}
+.term{border-bottom:1px dotted currentColor;cursor:help;text-decoration:none}
+.term:hover,.term:focus-visible{color:var(--accent);outline:none}
+.term-tip{position:absolute;z-index:60;max-width:22rem;padding:.5rem .625rem;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow);font:400 .875rem/1.4 var(--font-body);display:grid;gap:.25rem}
+.term-tip[hidden]{display:none}
+.term-tip b{font:700 .9375rem/1.2 var(--font-display)}
+.tt-links{font-size:.8125rem;color:var(--muted)}
+.tt-links a{color:var(--accent)}
+.ok{color:var(--ok)} .no{color:var(--bad)}
+.flash{padding:.5rem .625rem;border:1px solid var(--bad);border-radius:4px;color:var(--ink);font-size:.9375rem}
+.flash b{color:var(--bad)}
+.flash .rchip{margin-left:.375rem}
+.act{appearance:none;border:0;border-radius:4px;background:var(--accent);color:var(--on-accent);font:700 1.0625rem/1 var(--font-display);letter-spacing:.03em;padding:.8125rem .875rem;cursor:pointer;transition:filter .15s}
+.act:hover:not(:disabled){filter:brightness(1.08)}
+.act:disabled{background:var(--line);color:var(--muted);cursor:default}
+.act2{padding:.6875rem .875rem;font:700 1rem/1 var(--font-display);letter-spacing:.03em}
+
+/* The dice tray sits in the middle of the panel, under the orders, as at a real table; its Throw row keeps its room
+   while hidden, so the felt never moves. It grows downwards over the unit card (which then scrolls on its own) and,
+   when there is no room left below, upwards (tray.js scrolls the panel). */
+.tray{display:grid;grid-template-columns:minmax(0,1fr);gap:.375rem;padding-top:.625rem;border-top:1px solid var(--line);background:var(--bg)}
+.tray-head{display:flex;justify-content:space-between;align-items:baseline;gap:.25rem .625rem}
+.tray-title{font:700 1rem/1.2 var(--font-display);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tray-head .linkbtn{font-size:.875rem;font-weight:500;white-space:nowrap}
+.tray-throw{display:flex;gap:.5rem}
+.tray-throw[hidden]{display:flex!important;visibility:hidden}
+.tray-go{flex:1;padding:.6875rem .75rem;font-size:1rem}
+.tray-throw .tbtn{font:700 .9375rem/1 var(--font-display);letter-spacing:.03em}
+.tray-felt{border-radius:.5625rem;padding:.4375rem;background:linear-gradient(145deg,#7d5534,#4a2f1b);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 2px 8px rgba(0,0,0,.28)}
+#trayCanvas{display:block;width:100%;height:7.5rem;border-radius:5px;background:radial-gradient(ellipse at 50% 35%,#2f5b3d,#1b3625);box-shadow:inset 0 2px 9px rgba(0,0,0,.6);cursor:pointer}
+
+.inplay:empty{display:none}
+.inplay{display:flex;flex-wrap:wrap;align-items:center;gap:.375rem;margin-top:.25rem}
+.ip-label{font:600 .75rem/1 var(--font-body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-right:.125rem}
+.rchip{appearance:none;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:.25rem .625rem;font:600 .875rem/1.1 var(--font-body);color:var(--ink);cursor:pointer;transition:border-color .15s}
+.rchip:hover{border-color:var(--accent)}
+.rchip.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.rchip.later{border-style:dashed;color:var(--muted)}
+.rc-later{font-size:.875rem;color:var(--muted);font-style:italic}
+/* Guided: the rule chips fold into one button (panel.js: inplayHTML); it pulses once when a new rule turns up. */
+.ipbtn{appearance:none;display:inline-flex;align-items:center;gap:.375rem;border:1px solid var(--line);background:transparent;border-radius:999px;padding:.25rem .5rem .25rem .625rem;font:600 .8125rem/1.1 var(--font-body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);cursor:pointer}
+.ipbtn:hover{border-color:var(--accent);color:var(--ink)}
+.ipbtn[aria-expanded="true"]{color:var(--ink);border-color:var(--muted)}
+.ipbtn::after{content:"";width:.375rem;height:.375rem;border:solid currentColor;border-width:0 .125rem .125rem 0;transform:translateY(-.0625rem) rotate(45deg);transition:transform .15s}
+.ipbtn[aria-expanded="true"]::after{transform:translateY(.0625rem) rotate(-135deg)}
+.ipn{min-width:1.25rem;padding:.0625rem .3125rem;border-radius:999px;background:var(--accent-soft);color:var(--ink);font:600 .75rem/1.2 var(--font-data);letter-spacing:0;text-align:center}
+.ipbtn.ping{animation:coach 1.1s ease-in-out 4 alternate;border-color:var(--accent);color:var(--ink)}
+@media (prefers-reduced-motion: reduce){.ipbtn.ping{animation:none;outline:.125rem solid var(--accent);outline-offset:.0625rem}}
+/* Touch screens: rule chips and the chips button big enough for a finger. */
+@media (pointer: coarse){.ipbtn,.rchip{min-height:2.25rem}}
+/* Reference column (js/ui/reference.js): tabs for the dice log, the rules, the To Wound chart, the armies and the scenario. */
+.ref-tabs{position:sticky;top:0;z-index:1;display:flex;flex-wrap:wrap;gap:0 .125rem;margin:0 0 .375rem;background:var(--bg);border-bottom:1px solid var(--line)}
+.ref-tab{appearance:none;border:0;background:none;margin-bottom:-1px;padding:.4375rem .4375rem .375rem;border-bottom:.1875rem solid transparent;font:700 .9375rem/1.1 var(--font-display);letter-spacing:.02em;color:var(--muted);cursor:pointer;white-space:nowrap}
+.ref-tab:hover{color:var(--ink)}
+.ref-tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.ref-new{display:inline-block;min-width:1.125rem;margin-left:.25rem;padding:.0625rem .25rem;border-radius:999px;background:var(--accent);color:var(--on-accent);font:600 .75rem/1.1 var(--font-data);text-align:center;vertical-align:.0625rem}
+.ref-search{width:100%;margin:.125rem 0 .5rem;padding:.4375rem .625rem;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font:inherit;font-size:.9375rem}
+.rgh{margin:.625rem 0 .25rem;font:600 .75rem/1.2 var(--font-body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+details.rgroup>summary{cursor:pointer}
+.rref{border-top:1px solid var(--line)}
+.rref>summary{cursor:pointer;padding:.4375rem 0 .4375rem 1.125rem;position:relative;list-style:none}
+.rref>summary::-webkit-details-marker{display:none}
+.rref>summary::before{content:"";position:absolute;left:.1875rem;top:.8125rem;width:.375rem;height:.375rem;border:solid var(--accent);border-width:0 .125rem .125rem 0;transform:rotate(-45deg);transition:transform .15s}
+.rref[open]>summary::before{transform:rotate(45deg)}
+.rref.hit>summary{background:var(--accent-soft)}
+.rref.later b{color:var(--muted)}
+.rshort{display:block;color:var(--muted);font-size:.875rem;line-height:1.35;margin-top:.125rem}
+.rbody{padding:0 0 .625rem 1.125rem;font-size:.9375rem}
+.rbody p{margin:.375rem 0 0}
+.legend{list-style:none;margin:.25rem 0 .5rem;padding:0;display:grid;gap:.375rem;font-size:.875rem}
+.legend li{display:flex;gap:.5rem;align-items:center}
+.legend li>span:last-child{flex:1;min-width:0}
+.tok-ic{width:1.75rem;height:1.75rem;flex:none}
+.rim-ic,.pip-ic,.tok-plus{flex:none;width:1.75rem;height:1.75rem;border-radius:50%;box-sizing:border-box}
+.rim-ic{background:#4373ad;border:.1875rem solid #9cbfe6}
+.rim-ic.eng{box-shadow:0 0 0 .125rem #1a140c,0 0 0 .25rem #ff7a45}
+.pip-ic{background:radial-gradient(circle at 30% 80%,#f2c45c .2rem,transparent .22rem),radial-gradient(circle at 50% 88%,#f2c45c .2rem,transparent .22rem),radial-gradient(circle at 70% 80%,#c89b6a .2rem,transparent .22rem),#4373ad}
+.pip-ic.mwf{border-radius:4px;background:radial-gradient(circle at 30% 25%,#e8803a .18rem,transparent .2rem),radial-gradient(circle at 70% 25%,#e8803a .18rem,transparent .2rem),radial-gradient(circle at 50% 55%,#6fa8f0 .18rem,transparent .2rem),radial-gradient(circle at 50% 85%,#5cc47a .18rem,transparent .2rem),var(--panel);border:1px solid var(--line)}
+.tok-plus{display:grid;place-items:center;background:#f1eadb;color:#1a140c;border:2px solid #14100a;font:800 .75rem/1 var(--font-body)}
+.effects{margin:.25rem 0 .5rem;padding-left:1.125rem;font-size:.9375rem;display:grid;gap:.25rem}
+.army{margin-bottom:.875rem}
+.army-h{display:flex;align-items:center;flex-wrap:wrap;gap:.375rem;margin:.5rem 0 .125rem;font:700 1rem/1.2 var(--font-display)}
+.broken-tag{font:600 .75rem/1 var(--font-body);letter-spacing:.08em;text-transform:uppercase;padding:.1875rem .375rem;border-radius:3px;background:var(--bad);color:var(--bg)}
+.army-sum{margin:0 0 .375rem;color:var(--muted);font-size:.875rem}
+.units{list-style:none;margin:0;padding:0}
+.urow{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 .5rem;padding:.3125rem .375rem;border-top:1px solid var(--line);cursor:pointer;font-size:.9375rem}
+.urow:hover,.urow.on{background:var(--accent-soft)}
+.uname{font-weight:600}
+.ubits{font:500 .8125rem/1.6 var(--font-data)}
+.ust{flex-basis:100%;color:var(--muted);font-size:.8125rem}
+.removed summary{cursor:pointer;color:var(--muted);font-size:.875rem;padding:.375rem 0}
+.removed ul{margin:0;padding-left:1.125rem;font-size:.875rem;color:var(--muted)}
+.brief{margin:.25rem 0 .5rem}
+.mrules{list-style:none;margin:0;padding:0;display:grid;gap:.375rem}
+.mrules li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.5rem;align-items:baseline;font-size:.875rem;color:var(--muted)}
+.vp-h{display:flex;align-items:center;gap:.5rem;margin:.5rem 0 .25rem}
+.vp{list-style:none;margin:0;padding:0;font-size:.875rem}
+.vp li{display:flex;justify-content:space-between;gap:.5rem;padding:.1875rem 0;border-top:1px solid var(--line)}
+.vp li.zero{color:var(--muted)}
+.rc-links{display:flex;flex-wrap:wrap;gap:.25rem .875rem}
+.rc-links a,.rcards a{color:var(--accent);font-weight:600;text-underline-offset:2px}
+
+.card{padding-top:.875rem;border-top:1px solid var(--line);min-height:7.5rem}
+.side > .card{flex:0 1 auto;overflow-y:auto}
+.card-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:.25rem .5rem}
+.card-head b{font:700 1.125rem/1.1 var(--font-display)}
+.card-head .full{color:var(--muted);font-size:.875rem}
+.side-tag{font:600 .75rem/1 var(--font-body);letter-spacing:.1em;text-transform:uppercase;padding:.1875rem .375rem;border-radius:3px;border:1px solid currentColor}
+.side-tag.good{color:var(--good)} .side-tag.evil{color:var(--evil)}
+.stats{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));margin:.625rem 0 0;border:1px solid var(--line);border-radius:4px}
+.stats div{padding:.375rem 0;text-align:center;border-left:1px solid var(--line);min-width:0}
+.stats div:first-child{border-left:0}
+.stats dt{font:600 .75rem/1 var(--font-body);letter-spacing:.04em;color:var(--muted);cursor:help}
+.stats dd{margin:.25rem 0 0;font:600 .875rem/1 var(--font-data);font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.02em}
+/* Comparison card (compare.js): the selected model and the one under the pointer, side by side. */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.cmp.one{grid-template-columns:1fr}
+.cmp-col{min-width:0;padding:.375rem .5rem .5rem;border:1px solid var(--line);border-left:.1875rem solid var(--good);border-radius:4px}
+.cmp-col.evil{border-left-color:var(--evil)}
+.cmp.one .cmp-col{border:0;padding:0}
+.cmp-head{display:flex;align-items:baseline;gap:.375rem;min-width:0}
+.cmp-head b{font:700 1rem/1.15 var(--font-display);overflow-wrap:anywhere;min-width:0}
+.cmp.one .cmp-head b{font-size:1.125rem;white-space:normal}
+.cmp-stats{grid-template-columns:repeat(var(--n),minmax(0,1fr));margin-top:.375rem}
+.cmp-pips{display:flex;flex-wrap:wrap;gap:.125rem .5rem;margin-top:.375rem}
+.pips{display:inline-flex;align-items:center;gap:.125rem;font:600 .75rem/1 var(--font-body);color:var(--muted)}
+.pips .plbl{margin-right:.125rem}
+.pips i{width:.5625rem;height:.5625rem;border-radius:50%;border:1px solid var(--muted);display:inline-block}
+.pips.w i.on{background:#e0a92c;border-color:#8a6410}
+.pips.mw i.on{background:#b98a5a;border-color:#6d4a26}
+.pips.m i.on{background:#d9662f;border-color:#86391a}
+.pips.wi i.on{background:#4f8fdc;border-color:#244f86}
+.pips.f i.on{background:#3f9a5c;border-color:#1f5a33}
+.cmp-gear{margin:.375rem 0 0;font-size:.8125rem;line-height:1.3;color:var(--muted)}
+.cmp-state{margin:.375rem 0 0;font-size:.875rem;color:var(--muted)}
+.cmp-state [class^="st-"]{color:var(--ink);font-weight:600}
+.cmp-vs{margin:.5rem 0 0;font-size:.875rem;display:flex;flex-direction:column;gap:.125rem}
+.cmp-more{margin:.375rem 0 0}
+.cmp-details .profile{margin-top:.75rem;padding-top:.625rem;border-top:1px dashed var(--line)}
+.weapon,.state{margin:.5rem 0 0;font-size:.9375rem}
+.kw{margin:.25rem 0 0;font:600 .75rem/1.3 var(--font-body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.lbl{font:600 .75rem var(--font-body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:.25rem}
+.muted-inline{color:var(--muted);font-size:.875rem}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);font:600 .9375rem var(--font-body);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.state{color:var(--muted)}
+.muted{color:var(--muted);margin:0}
+
+.chart-cap{margin:.375rem 0 .5rem;color:var(--muted);font-size:.875rem}
+.wc-wrap{overflow-x:auto}
+table.wc{border-collapse:collapse;font:500 .8125rem/1 var(--font-data);font-variant-numeric:tabular-nums}
+.wc th,.wc td{min-width:1.75rem;height:1.5rem;padding:0 .125rem;text-align:center;border:1px solid var(--line)}
+.wc th{color:var(--muted);font-weight:600}
+.wc th.corner{font-size:.75rem}
+.wc td.hl{background:var(--accent);color:var(--on-accent);font-weight:700}
+.wc th.hlx{color:var(--accent);background:var(--accent-soft)}
+
+.logbox{grid-area:log;min-height:0;min-width:0;overflow-y:auto;overflow-x:hidden;padding-right:.5rem;scrollbar-gutter:stable}
+.log-filters{display:flex;gap:.25rem;margin:0 0 .375rem}
+.lf{font:600 .8125rem/1 var(--font-body);padding:.3125rem .625rem;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--muted);cursor:pointer}
+.lf[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);border-color:var(--accent)}
+.lturn{border-top:1px solid var(--line)}
+.lturn:first-child{border-top:0}
+.lturn>summary{cursor:pointer;padding:.375rem 0;font:700 .875rem/1.2 var(--font-display);list-style-position:inside}
+.lcount{font:600 .75rem/1 var(--font-body);color:var(--muted);margin-left:.25rem}
+.lph{margin:.375rem 0 .125rem;font:600 .75rem/1 var(--font-body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.lline{border-left:.1875rem solid var(--line);margin:0 0 .125rem;border-radius:2px}
+.lline.s-good{border-left-color:var(--good)}
+.lline.s-evil{border-left-color:var(--evil)}
+.lline.fresh{animation:fresh 1.2s ease-out}
+.lsum{display:flex;align-items:flex-start;gap:.375rem;width:100%;padding:.25rem .375rem;background:transparent;border:0;text-align:left;font:400 .875rem/1.35 var(--font-body);color:inherit;cursor:pointer}
+.lsum:hover{background:var(--accent-soft)}
+.lsum[data-plain]{cursor:default}
+.lsum[data-plain]:hover{background:transparent}
+.lshort{flex:1;min-width:0}
+.lic{flex:none;width:1rem;height:1rem;margin-top:.0625rem;display:grid;place-items:center;font:700 .6875rem/1 var(--font-data)}
+.lic.die{border:1px solid var(--muted);border-radius:3px;background:var(--die);color:var(--ink)}
+.lic.dot::before{content:"";width:.4375rem;height:.4375rem;border-radius:50%;background:var(--muted)}
+.lline.t-good .lic.dot::before{background:var(--ok)}
+.lline.t-bad .lic.dot::before{background:var(--bad)}
+.lline.t-good .lic.die{border-color:var(--ok)}
+.lline.t-bad .lic.die{border-color:var(--bad)}
+.lauto{flex:none;font:600 .6875rem/1.4 var(--font-body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:0 .25rem}
+.ldice{flex:none;font:500 .75rem/1.5 var(--font-data);color:var(--muted)}
+.ldet{padding:.125rem .5rem .5rem 1.875rem;font-size:.875rem}
+.ldet[hidden]{display:none}
+.ltxt,.lmods{margin:.25rem 0 0}
+.ldet .dice{margin-top:.375rem}
+.ldet .chips{display:flex;flex-wrap:wrap;gap:.3125rem;margin-top:.375rem}
+.ldet .rchip{font-size:.8125rem;padding:.1875rem .5rem}
+.rollhist{margin:.75rem 0;text-align:left}
+.rollhist>summary{cursor:pointer;font-weight:600}
+.rh-list{max-height:16rem;overflow:auto;margin-top:.5rem;font-size:.875rem}
+.rh-line{margin:0 0 .125rem;padding-left:.375rem;border-left:.1875rem solid var(--line)}
+.rh-line.s-good{border-left-color:var(--good)}
+.rh-line.s-evil{border-left-color:var(--evil)}
+.log-empty{color:var(--muted);margin:.375rem 0 0;font-size:.9375rem}
+.entry{padding:.5625rem 0;border-top:1px solid var(--line)}
+.entry:first-child{border-top:0}
+.entry .meta{display:flex;align-items:center;gap:.375rem;font:600 .75rem/1 var(--font-body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.entry .meta i{width:.4375rem;height:.4375rem;border-radius:50%;background:var(--line);display:inline-block}
+.entry.t-good .meta i{background:var(--ok)}
+.entry.t-bad .meta i{background:var(--bad)}
+.entry .txt{margin-top:.25rem}
+.entry .chips{display:flex;flex-wrap:wrap;gap:.3125rem;margin-top:.4375rem}
+.entry .rchip{font-size:.8125rem;padding:.1875rem .5rem}
+.entry.fresh{animation:fresh 1.2s ease-out}
+@keyframes fresh{from{background:var(--accent-soft)}to{background:transparent}}
+.dice{display:flex;flex-wrap:wrap;gap:.375rem .875rem;margin-top:.375rem}
+.dg{display:inline-flex;align-items:center;flex-wrap:wrap;gap:.25rem}
+.dl{font-size:.8125rem;color:var(--muted);margin-right:.125rem}
+.die{display:inline-grid;place-items:center;width:1.5rem;height:1.5rem;border:1px solid var(--die-line);border-radius:4px;background:var(--die);font:600 .8125rem/1 var(--font-data)}
+.die.ok{background:var(--ok);border-color:var(--ok);color:var(--bg)}
+.die.no{opacity:.5}
+
+.menu{position:fixed;inset:0;z-index:20;background:var(--bg);overflow:auto;padding-inline:1rem;padding-block:calc(1.5rem + env(safe-area-inset-top,0px)) 2.5rem}
+.menu-in{max-width:76rem;margin:0 auto;display:grid;grid-template-columns:minmax(0,21rem) minmax(0,1fr);gap:2.5rem;align-items:start}
+.menu-side{position:sticky;top:0}
+.menu h1{margin:.5rem 0 0;font:700 clamp(2.25rem,5vw,3.5rem)/.95 var(--font-display);letter-spacing:.005em;text-wrap:balance}
+.menu .lede{font-size:1rem;max-width:34em;margin:.875rem 0 0}
+.menu .scope{font-size:.875rem;max-width:34em;margin:.5rem 0 0;color:var(--muted)}
+.menu .scope b{color:var(--ink,inherit);font-weight:600}
+.next{margin:1.25rem 0 0}
+.next .mrow{border:1px solid var(--accent);border-radius:.5rem;background:var(--panel);padding:.75rem .875rem}
+.next .mrow:hover{background:var(--accent-soft)}
+.next .mlabel{grid-column:1/-1;font:600 .75rem/1.2 var(--font-body);letter-spacing:.13em;text-transform:uppercase;color:var(--accent)}
+.menu .how{margin:1.25rem 0 0;border-top:1px solid var(--line);padding-top:.625rem}
+.menu .how summary{cursor:pointer;font:700 1rem/1.3 var(--font-display);color:var(--ink)}
+.menu .how ul{margin:.625rem 0 0;padding:0;list-style:none;display:grid;gap:.5rem;font-size:.9375rem}
+.menu .how li{display:grid;grid-template-columns:1.5rem 1fr;gap:.5rem}
+.menu .how li span{font:600 .875rem/1.5 var(--font-data);color:var(--accent)}
+.menu .fine{margin:1rem 0 0;color:var(--muted);font-size:.8125rem;max-width:40em}
+.eyebrow .whatsnew{margin-left:.5rem;font:600 .75rem/1.2 var(--font-body);letter-spacing:.06em}
+.whatsnew.fresh::after{content:"New";margin-left:.375rem;padding:.0625rem .375rem;border-radius:999px;background:var(--accent);color:var(--panel);font-size:.75rem;letter-spacing:0;text-transform:none;display:inline-block;text-decoration:none}
+.dialog.notes-dlg{max-width:44rem}
+.notes .rel{margin:0 0 1rem}
+.notes h3{margin:0 0 .375rem;font:700 1.125rem/1.25 var(--font-display)}
+.notes .rel-v{font:600 .75rem var(--font-data);color:var(--muted);margin-left:.375rem}
+.notes ul{margin:0;padding-left:1.25rem;display:grid;gap:.25rem;font-size:.9375rem}
+.menu .fine a{color:var(--accent)}
+.mlist{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(17rem,1fr));gap:.375rem .75rem;align-content:start}
+.mrow{display:grid;grid-template-columns:2.25rem minmax(0,1fr) auto;gap:.625rem;align-items:center;width:100%;padding:.5rem .625rem;border:1px solid transparent;border-radius:.5rem;background:none;text-align:left;cursor:pointer;color:inherit}
+.mrow:hover{background:var(--panel);border-color:var(--line)}
+.mchap{grid-column:1/-1;display:flex;align-items:baseline;gap:.75rem;padding:1rem .625rem .25rem;border-bottom:1px solid var(--line);font:600 .75rem/1.2 var(--font-body);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.mchap:first-child{padding-top:0}
+.mchap small{margin-left:auto;font:600 .75rem/1.2 var(--font-data);letter-spacing:0;text-transform:none;color:var(--muted)}
+.mnum{font:700 1.375rem/1 var(--font-display);color:var(--accent);text-align:center}
+.mtext b{display:block;font:700 1.0625rem/1.15 var(--font-display)}
+.mtext span{display:block;color:var(--muted);font-size:.8125rem;line-height:1.3;margin-top:.125rem}
+.mstate{font:700 1rem/1 var(--font-data);color:var(--ok);min-width:1rem;text-align:center}
+.mrow.done .mnum{color:var(--muted)}
+.menu-close{margin-top:1rem}
+
+.scrim{position:fixed;inset:0;z-index:30;background:var(--scrim);display:grid;place-items:center;padding:1rem}
+.dialog{background:var(--panel);color:var(--ink);width:100%;max-width:40rem;max-height:calc(100% - 8px);overflow:auto;border-radius:6px;padding:1.625rem 1.625rem 1.375rem;box-shadow:var(--shadow)}
+.dialog h2{margin:.375rem 0 .625rem;font:700 2rem/1.05 var(--font-display);text-wrap:balance}
+.dialog p{margin:0 0 .625rem}
+.goalbox{padding:.625rem .75rem;background:var(--accent-soft);border-radius:4px}
+.rcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.875rem;margin:1rem 0 .25rem}
+.rcards h3{margin:0 0 .25rem;font:700 1rem/1.2 var(--font-display);color:var(--accent)}
+.rcards p{margin:0 0 .25rem;font-size:.9375rem}
+.rcards a{font-size:.875rem}
+.dlg-actions{display:flex;flex-wrap:wrap;gap:.625rem;margin-top:1.125rem}
+.dlg-actions .act{padding-inline:1.375rem}
+/* Options dialog (js/ui/options.js): groups of switches, two columns on a wide screen */
+.dialog.options{max-width:58rem}
+.opt-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(21rem,1fr));gap:1rem 2rem;margin-top:.25rem}
+.opt-group h3{margin:.5rem 0 .375rem;font:700 1rem/1.2 var(--font-display);color:var(--accent)}
+.opt{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.125rem .625rem;align-items:baseline;padding:.375rem 0;cursor:pointer}
+.opt input{margin:0;transform:translateY(.0625rem)}
+.opt span{font-weight:700}
+.opt small{grid-column:2;color:var(--muted);font-size:.875rem;line-height:1.4}
+.opt-note{margin:0 0 .25rem!important;color:var(--muted);font-size:.875rem}
+/* "New rule" lesson popups */
+.lesson-scrim{z-index:35}
+.dialog.lesson{max-width:38rem}
+.lesson .lead{font-size:1.0625rem}
+.lesson h3{margin:1rem 0 .3125rem;font:700 1rem/1.2 var(--font-display);color:var(--accent)}
+.lesson ul{margin:0;padding-left:1.25rem;display:grid;gap:.375rem}
+/* The recap of rules from earlier missions (ui/lessons.js: renderRecap): a line each, opening in place. */
+.lesson ul.recap{list-style:none;padding:0;margin-top:.75rem;gap:0;border-top:1px solid var(--line)}
+.recap > li{border-bottom:1px solid var(--line)}
+.recap summary{cursor:pointer;padding:.5rem 0 .5rem 1.25rem;position:relative;list-style:none}
+.recap summary::-webkit-details-marker{display:none}
+.recap summary::before{content:"";position:absolute;left:.25rem;top:.9rem;width:.375rem;height:.375rem;border:solid var(--accent);border-width:0 .125rem .125rem 0;transform:rotate(-45deg);transition:transform .15s}
+.recap details[open] summary::before{transform:rotate(45deg)}
+.recap details ul{margin:0 0 .625rem 1.25rem;padding-left:1.25rem;font-size:.9375rem}
+.rmis{font:600 .75rem/1 var(--font-body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-left:.375rem}
+.lesson li .die{vertical-align:middle;margin-right:2px}
+.lnow{margin:1rem 0 0!important;padding:.625rem .75rem;background:var(--accent-soft);border-radius:4px}
+.lref{align-self:center;color:var(--accent);font-weight:600;text-underline-offset:2px}
+.lfoot{margin:.75rem 0 0!important;font-size:.8125rem;color:var(--muted)}
+.lfig{margin:.75rem 0 .25rem;padding:.5rem;background:var(--bg);border:1px solid var(--line);border-radius:4px}
+.lfig svg{display:block;width:100%;height:auto;max-height:9rem}
+.lfig .stats{margin:0}
+.lfig-cap{margin:0 0 .375rem!important;font-weight:700}
+/* "Where to click" in a lesson: numbered steps, with the game's buttons and table markers drawn small */
+.lclick{margin-top:1rem;padding:.625rem .875rem .75rem;border:1px solid var(--accent);border-left-width:.25rem;border-radius:4px}
+.lmore{margin-top:.875rem;border-top:1px solid var(--line);padding-top:.5rem}
+.lmore>summary{cursor:pointer;font-weight:600;color:var(--accent)}
+.lesson .lclick h3{margin-top:0}
+.lclick ol{margin:0;padding-left:1.375rem;display:grid;gap:.4375rem}
+.lclick p{margin:0!important}
+.lclick .lclick-foot{margin-top:.5rem!important;font-size:.8125rem;color:var(--muted)}
+.ui-btn{padding:.0625rem .4375rem;border-radius:4px;background:var(--accent);color:var(--on-accent);font:700 .875rem/1.5 var(--font-display);letter-spacing:.03em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.ui-btn.alt{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--muted)}
+.ui-mark{display:inline-grid;place-items:center;width:1.25rem;height:1.25rem;vertical-align:-.3125rem;border-radius:3px;background:#2e4433}
+.ui-dot{width:.5rem;height:.5rem;border-radius:50%;border:1px solid #1a1a12}
+.ui-ring{width:.875rem;height:.875rem;border-radius:50%;border:2px dashed}
+.ui-dot.ok{background:#a8e6a3} .ui-dot.pick{background:#f2c45c}
+.ui-ring.pick{border-color:#f2c45c} .ui-ring.bad{border-color:#ff917c}
+/* The first time a new control is needed it pulses for a few seconds (coach() in js/ui/lessons.js). */
+.coach{animation:coach 1.1s ease-in-out 6 alternate}
+@keyframes coach{to{box-shadow:inset 0 0 0 .1875rem var(--coach-ring,var(--accent)),0 0 .875rem .125rem color-mix(in srgb,var(--accent) 65%,transparent)}}
+.act.coach{--coach-ring:var(--on-accent)}
+#board.coach{animation-name:coach-out}
+@keyframes coach-out{to{box-shadow:0 0 0 .25rem var(--accent),0 0 1.5rem .375rem color-mix(in srgb,var(--accent) 60%,transparent)}}
+@media (prefers-reduced-motion: reduce){.coach{outline:.1875rem solid var(--accent);outline-offset:-.1875rem}}
+.lf-good{fill:var(--good)} .lf-evil{fill:var(--evil)}
+.lf-ghost{fill:none;stroke:var(--ok);stroke-width:2;stroke-dasharray:3 3}
+.lf-cz{fill:color-mix(in srgb,var(--bad) 14%,transparent);stroke:var(--bad);stroke-width:1.2;stroke-dasharray:4 4}
+.lf-reach{fill:none;stroke:var(--accent);stroke-width:1.5;stroke-dasharray:6 5}
+.lf-reach.inner{stroke-dasharray:2 4}
+.lf-path{fill:none;stroke:var(--ok);stroke-width:2;stroke-dasharray:5 4}
+.lf-path.bad,.lf-arrow.bad{stroke:var(--bad)}
+.lf-arrow{stroke:var(--ink);stroke-width:2}
+.lf-head{fill:var(--muted)}
+.lf-brush{fill:color-mix(in srgb,var(--ok) 22%,transparent);stroke:var(--ok);stroke-dasharray:3 3}
+.lf-rock{fill:var(--muted)}
+.lf-fire{stroke:var(--ok);stroke-width:2}
+.lf-view{fill:color-mix(in srgb,var(--ok) 12%,transparent);stroke:var(--ok);stroke-opacity:.6;stroke-dasharray:3 4}
+.lf-fire.bad{stroke:var(--bad);stroke-dasharray:5 4}
+.lf-wall{fill:color-mix(in srgb,var(--muted) 75%,transparent);stroke:var(--ink);stroke-width:.8}
+.lf-diamond{fill:#ffd47e;stroke:#2a2414}
+.lf-halo{fill:none;stroke-width:4}
+.lf-halo.c1{stroke:#c9962e} .lf-halo.c2{stroke:#4f8fc0}
+.lf-text{fill:var(--ink);font:500 12px var(--font-body)}
+.lf-text.muted{fill:var(--muted)} .lf-text.c1{fill:#b07d16} .lf-text.c2{fill:#3c7fb4}
+.result-win{color:var(--ok)} .result-lose{color:var(--bad)}
+
+/* Medium screens: the mission and the dice log go under the board, the mission on the left. */
+/* Matched play: army builder, briefing and Victory Points */
+.dialog.wide{max-width:76rem}
+.mp-lede{color:var(--muted);max-width:52em}
+.mp-limit{display:flex;flex-wrap:wrap;align-items:center;gap:.375rem;margin:.75rem 0 1rem}
+.mp-limit span{font:600 .75rem/1 var(--font-body);letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin-right:.375rem}
+.mp-limit [aria-checked="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.mp-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem}
+.mp-col{min-width:0;display:flex;flex-direction:column;gap:.5rem}
+.mp-col h3{margin:0;font:700 1.25rem/1.1 var(--font-display);display:flex;align-items:center;gap:.5rem}
+.mp-pick select{width:100%;padding:.4375rem .5rem;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);font:500 1rem var(--font-body)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.mp-rules{font-size:.875rem}
+.mp-rules summary{cursor:pointer;color:var(--accent);font-weight:600}
+.mp-rules p{margin:.375rem 0 0}
+.mp-units{display:grid;gap:.625rem;max-height:min(46vh,30rem);overflow:auto;padding-right:.25rem;scrollbar-gutter:stable}
+.mp-unit h4{margin:0;font:700 1rem/1.2 var(--font-display)}
+.mp-stats{margin:.125rem 0 .25rem!important;font:500 .75rem/1.4 var(--font-data);color:var(--muted)}
+.mp-stats span{cursor:help;text-decoration:underline dotted;text-underline-offset:2px}
+.mp-row{display:grid;grid-template-columns:minmax(0,1fr) 2.5rem 4rem auto;gap:.5rem;align-items:center;padding:.1875rem 0;border-top:1px solid var(--line);font-size:.9375rem}
+.mp-d,.mp-pts{font:500 .8125rem/1 var(--font-data);color:var(--muted);text-align:right}
+.mp-note{color:var(--accent);cursor:help;font-weight:700}
+.mp-step{display:flex;align-items:center;gap:.25rem}
+.mp-step .tbtn{padding:.1875rem .5625rem;font:700 1rem/1 var(--font-data)}
+.mp-step output{min-width:1.75rem;text-align:center;font:600 .9375rem/1 var(--font-data)}
+.mp-sum p{margin:.25rem 0 0;font-size:.9375rem}
+.mp-bar{height:.375rem;border-radius:3px;background:var(--line);overflow:hidden}
+.mp-bar i{display:block;height:100%;background:var(--accent)}
+.mp-bar i.over{background:var(--bad)}
+.mp-tools{display:flex;gap:.5rem}
+.mp-src{margin:1rem 0 0!important;font-size:.875rem;color:var(--muted)}
+.mp-src a{color:var(--accent)}
+.mp-vs{font:500 1.125rem var(--font-body);color:var(--muted)}
+.mp-vp{width:100%;border-collapse:collapse;margin:.75rem 0;font-size:.9375rem}
+.mp-vp th,.mp-vp td{padding:.3125rem .5rem;border-top:1px solid var(--line);text-align:left}
+.mp-vp td+td,.mp-vp th+th{text-align:right;white-space:nowrap}
+.mp-vp .tot td{font-weight:700;color:var(--accent)}
+.mp-fine{font-size:.875rem;color:var(--muted)}
+.rtip{cursor:help;text-decoration:underline dotted;text-underline-offset:2px}
+@media (max-width:900px){ .mp-cols{grid-template-columns:minmax(0,1fr)} .mp-units{max-height:none} }
+
+@media (max-width:1280px){
+  .ladder{grid-template-columns:minmax(0,1fr)}
+  .main{grid-template-columns:minmax(0,1fr) var(--col-right,24rem);grid-template-rows:auto minmax(0,1fr) clamp(9rem,26vh,15rem);grid-template-areas:"mission side" "board side" "log side"}
+  .main.ref-folded{grid-template-columns:minmax(0,1fr) var(--col-right,24rem);grid-template-rows:auto minmax(0,1fr) auto}
+  .main.ref-folded .ref-tabs{flex-direction:row;align-items:stretch;border-bottom:1px solid var(--line)}
+  .main.ref-folded .ref-tab{writing-mode:horizontal-tb;padding:.4375rem}
+  .main.ref-folded .ref-fold{order:0;margin:0 0 0 auto}
+  .ref-fold::before{content:"▾"} .main.ref-folded .ref-fold::before{content:"▴"}
+  .split-l{display:none}
+  .split-r{grid-column:2}
+  .logbox{padding-top:.625rem;border-top:1px solid var(--line)}
+
+}
+@media (max-width:900px){
+  .app{height:auto}
+  .main{grid-template-columns:minmax(0,1fr);grid-template-rows:none;grid-template-areas:"mission" "board" "side"}
+  .app{padding-bottom:3.75rem}
+  .logbox{position:fixed;left:0;right:0;bottom:0;z-index:30;height:3rem;padding:0 .75rem;background:var(--panel);border-top:1px solid var(--line);box-shadow:0 -6px 18px rgba(0,0,0,.25);overflow:hidden!important;transition:height .2s ease}
+  .main.sheet-open .logbox{height:72vh;overflow-y:auto!important}
+  .logbox .ref-tabs{flex-wrap:nowrap;overflow-x:auto;background:var(--panel)}
+  .main:not(.sheet-open) .ref-pane{display:none!important}
+  .ref-fold::before{content:"▴"} .main.sheet-open .ref-fold::before{content:"▾"}
+  .ref-tab{min-height:2.75rem}
+  .score{order:5;width:100%}
+  .substeps{justify-content:flex-start}
+  .brand{font-size:1.25rem} .brand span{display:none}
+  .top{gap:.5rem .75rem}
+  .mission{padding-right:0}
+  .split{display:none}
+  .side{overflow:visible;padding-right:0}
+  .tray{position:static}
+  .menu-in{grid-template-columns:minmax(0,1fr);gap:1.5rem}
+  .menu-side{position:static}
+}
+@media (prefers-reduced-motion: reduce){
+  *{transition:none!important;animation:none!important}
+}

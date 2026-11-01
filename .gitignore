@@ -1,0 +1,24 @@
+# Build output (npm run build)
+dist/
+
+# Dependencies, caches, logs
+node_modules/
+*.log
+__pycache__/
+
+# Secrets and local settings
+.webui_secret_key
+.env
+
+# Generated copy of the Rules Manual (refresh with tools/fetch-rules.py).
+# Copyrighted text: never commit it, never push it.
+docs/rules/
+docs/edoras/
+
+# OS / editor
+Thumbs.db
+desktop.ini
+.vscode/
+
+# Private words the build checks for (tools/build-single.js)
+tools/.private-words

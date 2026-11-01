@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token sheet</title>
+<style>
+  body { margin: 0; padding: 16px; background: #43543a; color: #f1eadb; font: 14px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 16px; margin: 0 0 8px; }
+  p { margin: 0 0 12px; opacity: .85; }
+  input { font: inherit; padding: 2px 6px; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<h1>Token sheet: every unit type, both sides, at the sizes the board uses (zoom 1 on a small screen up to zoomed in)</h1>
+<p>Mission units first, then the matched play armies. Up to 60 rows at a time; filter by name, keyword or wargear: <input id="q" placeholder="rohan, uruk, banner…"></p>
+<canvas id="sheet"></canvas>
+<script type="module">
+import { TYPES, baseRadius } from '../js/data/units.js';
+import { ARMY_TYPES } from '../js/data/army-lists.js';
+import { drawToken, loadTokenArt } from '../js/ui/tokens.js';
+loadTokenArt();
+
+const SIZES = [8, 14, 24, 44, 80];   // base radius in px for a 25 mm base
+const all = [...Object.entries(TYPES).map(([k, T]) => [k, T, 'missions']), ...Object.entries(ARMY_TYPES).map(([k, T]) => [k, T, 'matched play'])];
+const cv = document.getElementById('sheet'), dpr = window.devicePixelRatio || 1, ctx = cv.getContext('2d');
+const q = document.getElementById('q');
+const MAX = 60;   // rows drawn at once: the canvas would get too tall for the browser otherwise
+let rows = all, pad = 16, label = 300, rowH = 150;
+const colW = SIZES.map(r => Math.max(2.4 * r * 2.4, 40));
+const W = pad * 2 + label + colW.reduce((a, b) => a + b, 0) * 2;
+function pick() {
+  const s = q.value.trim().toLowerCase();
+  rows = (s ? all.filter(([k, T, src]) => (k + ' ' + (T.full || T.n) + ' ' + T.kw + ' ' + (T.gear || []).join(' ') + ' ' + src).toLowerCase().includes(s)) : all).slice(0, GRID ? 400 : MAX);
+  const H = pad * 2 + rowH * rows.length;
+  cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  if (GRID) return drawGrid(performance.now());
+  draw(performance.now());
+}
+q.oninput = pick;
+// Grid mode (?grid&r=60&q=rohan): one big token per type with its name, for checking the art.
+const params = new URLSearchParams(location.search);
+const GRID = params.has("grid"), GR = +params.get("r") || 60, COLS = Math.max(1, Math.floor((innerWidth - 32) / (GR * 2.9)));
+if (params.get("q")) q.value = params.get("q");
+const EVIL = /Orc|Uruk-hai|Goblin|Troll|Warg|Spider|Spirit|Drake|Dunland|Harad|Easterling|Umbar|Corsair|Angmar|Black Dragon|Ruffian|Dol Guldur|Gundabad|Moria|Mordor|Isengard/;
+function drawGrid(now) {
+  const cw = GR * 2.9, ch = GR * 2.9 + 36, H = pad * 2 + ch * Math.ceil(rows.length / COLS), Wg = pad * 2 + cw * COLS;
+  cv.width = Wg * dpr; cv.height = H * dpr; cv.style.width = Wg + "px"; cv.style.height = H + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = "#4f6344"; ctx.fillRect(0, 0, Wg, H);
+  rows.forEach(([t, T], i) => {
+    const x = pad + (i % COLS) * cw + cw / 2, y = pad + Math.floor(i / COLS) * ch + GR * 1.45;
+    const u = { t, T, side: EVIL.test(T.kw) ? "evil" : "good", r: baseRadius(T), w: T.w, maxW: T.w };
+    drawToken(ctx, u, x, y, GR * u.r / 0.5, {}, now, dpr);
+    ctx.fillStyle = "#f1eadb"; ctx.font = "600 11px system-ui"; ctx.textAlign = "center";
+    const name = T.full || T.n; ctx.fillText(name.length > 30 ? name.slice(0, 29) + "…" : name, x, y + GR * 1.45 + 14);
+    ctx.font = "10px system-ui"; ctx.fillStyle = "#cfc8b6"; ctx.fillText(T.kw.split(" · ").slice(0, 2).join(" · "), x, y + GR * 1.45 + 28); ctx.textAlign = "left";
+  });
+}
+
+function draw(now) {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#4f6344'; ctx.fillRect(0, 0, W, pad * 2 + rowH * rows.length);
+  rows.forEach(([t, T, src], row) => {
+    const y0 = pad + rowH * row, u0 = { t, T, r: baseRadius(T), w: T.w, maxW: T.w };
+    ctx.fillStyle = '#f1eadb'; ctx.font = '600 13px system-ui'; ctx.fillText(T.full || T.n, pad, y0 + 18);
+    ctx.font = '12px system-ui'; ctx.fillStyle = '#d8d2c2'; ctx.fillText(T.kw, pad, y0 + 36); ctx.fillText((T.gear || []).join(', '), pad, y0 + 52);
+    ctx.fillStyle = '#b9b3a3'; ctx.fillText(`${t} · ${src}`, pad, y0 + 68);
+    let x = pad + label;
+    ['good', 'evil'].forEach(side => SIZES.forEach((r, i) => {
+      const u = Object.assign({ side }, u0), R = r * u.r / 0.5;
+      drawToken(ctx, u, x + colW[i] / 2, y0 + rowH / 2, R, i === 3 ? { selected: true, moveLeft: 0.6 } : {}, now, dpr);
+      x += colW[i];
+    }));
+  });
+}
+pick();
+</script>
+</body>
+</html>

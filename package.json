@@ -1,0 +1,14 @@
+{
+  "name": "mesbgpc",
+  "version": "0.6.0-alpha.2",
+  "private": true,
+  "license": "MIT",
+  "description": "Captain's School: a MESBG-style wargame rules trainer (alpha).",
+  "scripts": {
+    "start": "node server.js",
+    "build": "node tools/build-single.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

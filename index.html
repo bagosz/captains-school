@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Captain's School</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">Captain's School<span>Wargame rules trainer · prototype</span></div>
+    <div class="ladder">
+      <ol class="phases" id="phases" aria-label="Turn phases (click one for its rule)">
+        <li data-p="priority" data-rule="priority" tabindex="0">Priority</li><li data-p="move" data-rule="move" tabindex="0">Move</li><li data-p="shoot" data-rule="shoot" tabindex="0">Shoot</li><li data-p="fight" data-rule="duel" tabindex="0">Fight</li><li data-p="end" data-rule="courage" tabindex="0">End</li>
+      </ol>
+      <ol class="substeps" id="substeps" aria-label="Steps of the Fight phase" hidden>
+        <li data-s="heroic" data-rule="heroic" tabindex="0">Heroic Actions</li><li data-s="pair" data-rule="pairoff" tabindex="0">Pair Off</li><li data-s="duel" data-rule="duel" tabindex="0">Duels</li>
+      </ol>
+    </div>
+    <div class="turn" id="turn">Turn 1 of 7</div>
+    <div class="prio" id="prio" hidden title="The side with Priority moves and shoots first, splits the fights into Combats and picks the order they are fought in."></div>
+    <div class="score" id="score" aria-label="Both armies"></div>
+    <div class="tools">
+      <button class="tbtn autotag" id="autoTag" type="button" hidden title="AI plays for you is on: the computer takes every decision for your side. Click to take over.">AI plays for you · stop</button>
+      <div class="menu-dd">
+        <button class="tbtn" id="menuToggle" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menuDD">Menu</button>
+        <div class="dd" id="menuDD" role="menu" hidden>
+          <button class="dd-item" id="menuBtn" type="button" role="menuitem">Missions</button>
+          <button class="dd-item" id="restartBtn" type="button" role="menuitem">Restart</button>
+          <button class="dd-item" id="optionsBtn" type="button" role="menuitem" title="Detail level, odds, the archer's ruler, dice, automatic steps, sound">Options</button>
+        </div>
+      </div>
+    </div>
+  </header>
+  <main class="main">
+    <aside class="logbox" aria-label="Dice log and rules reference">
+      <div class="ref-tabs" role="tablist" aria-label="Dice log and rules reference">
+        <button class="ref-tab" role="tab" type="button" id="tab-log" data-tab="log" aria-controls="pane-log" aria-selected="true">Log<span class="ref-new" id="logNew" hidden></span></button>
+        <button class="ref-tab" role="tab" type="button" id="tab-rules" data-tab="rules" aria-controls="pane-rules" aria-selected="false" tabindex="-1" title="Every rule in play now is at the top of this tab">Rules<span class="ref-new" id="rulesNew" hidden></span></button>
+        <button class="ref-tab" role="tab" type="button" id="tab-chart" data-tab="chart" aria-controls="pane-chart" aria-selected="false" tabindex="-1">To Wound</button>
+        <button class="ref-tab" role="tab" type="button" id="tab-armies" data-tab="armies" aria-controls="pane-armies" aria-selected="false" tabindex="-1">Armies</button>
+        <button class="ref-tab" role="tab" type="button" id="tab-scenario" data-tab="scenario" aria-controls="pane-scenario" aria-selected="false" tabindex="-1">Scenario</button>
+        <button class="ref-fold" id="refFold" type="button" aria-expanded="true" title="Fold the column (the board gets the room)" aria-label="Fold the reference column"></button>
+      </div>
+      <section class="ref-pane" id="pane-log" role="tabpanel" aria-labelledby="tab-log"><div class="log-filters" id="logFilters" role="group" aria-label="Filter the log"></div><div class="log" id="log"></div></section>
+      <section class="ref-pane" id="pane-rules" role="tabpanel" aria-labelledby="tab-rules" hidden>
+        <input class="ref-search" id="ruleSearch" type="search" placeholder="Search the rules" aria-label="Search the rules" autocomplete="off">
+        <div id="refRules"></div>
+      </section>
+      <section class="ref-pane chart" id="pane-chart" role="tabpanel" aria-labelledby="tab-chart" hidden>
+        <p class="chart-cap">Rows: the attacker's Strength. Columns: the target's Defence. The number is the D6 roll needed (4 means 4+).</p>
+        <div class="wc-wrap" id="wc"></div>
+      </section>
+      <section class="ref-pane" id="pane-armies" role="tabpanel" aria-labelledby="tab-armies" hidden><div id="refArmies"></div></section>
+      <section class="ref-pane" id="pane-scenario" role="tabpanel" aria-labelledby="tab-scenario" hidden><div id="refScenario"></div></section>
+    </aside>
+    <section class="mission" aria-label="Mission">
+      <div class="m-head"><h2 id="mTitle">The Scout</h2><p class="goal" id="mGoal"></p><p class="status" id="mStatus"></p><button class="linkbtn m-tipbtn" id="mTipBtn" type="button" title="Briefing and tip: the Scenario tab">Tip</button></div>
+    </section>
+    <div class="split split-l" id="splitL" role="separator" aria-orientation="vertical" aria-label="Resize the dice log and mission column" tabindex="0" title="Drag to resize · double-click to reset"></div>
+    <div class="split split-r" id="splitR" role="separator" aria-orientation="vertical" aria-label="Resize the commander's panel" tabindex="0" title="Drag to resize · double-click to reset"></div>
+    <section class="boardwrap" id="boardwrap" aria-label="Battlefield">
+      <canvas id="board" width="600" height="400"></canvas>
+      <div class="zoombar" role="group" aria-label="Zoom the table">
+        <button class="tbtn" id="zoomOut" type="button" title="Zoom out (− key or mouse wheel)" aria-label="Zoom out" disabled>−</button>
+        <button class="tbtn" id="zoomIn" type="button" title="Zoom in (+ key or mouse wheel). Zoomed in, drag the table to move the view." aria-label="Zoom in">+</button>
+        <button class="tbtn" id="zoomFit" type="button" title="Show the whole table (0 key)" disabled>Fit</button>
+        <button class="tbtn tool" id="toolMeasure" type="button" aria-pressed="false" title="Measuring tape (M): drag from a model or a point to another; base edge to base edge, as the rules measure">Measure</button>
+        <button class="tbtn tool" id="toolLook" type="button" aria-pressed="false" title="Look from here (V): click a model to see which enemies it can see and what is In The Way">Look</button>
+        <button class="tbtn tool" id="toolZones" type="button" aria-pressed="false" title="Show or hide the enemy Control Zones (Z)">Zones</button>
+      </div>
+    </section>
+    <aside class="side" aria-label="Commander's panel">
+      <section class="orders">
+        <div class="hint-title" id="hTitle">Pick a mission</div>
+        <p class="hint-body" id="hBody"></p>
+        <p class="preview" id="hPrev"></p>
+        <div class="choices" id="hChoices" hidden></div>
+        <div class="flash" id="flash" role="status" hidden></div>
+        <button class="act" id="act" type="button" disabled>Wait…</button>
+        <button class="tbtn act2" id="act2" type="button" hidden>Hand over Priority</button>
+        <div class="inplay" id="inplay" aria-label="Rules in play"></div>
+      </section>
+      <div class="tray">
+        <div class="tray-head"><span class="tray-title" id="trayTitle">Dice tray</span><button class="linkbtn tray-opts" id="trayOptions" type="button" title="One by one, rolling animation, auto roll">Dice options</button></div>
+        <div class="tray-throw" id="trayThrow" hidden><button class="act tray-go" id="trayGo" type="button">Throw your dice</button><button class="tbtn" id="trayRest" type="button" hidden>Throw the rest</button></div>
+        <div class="tray-felt"><canvas id="trayCanvas" title="Click to throw your next dice, or to settle the dice"></canvas></div>
+      </div>
+      <section class="card" id="card"></section>
+    </aside>
+  </main>
+</div>
+
+<div class="menu" id="menu" hidden>
+  <div class="menu-in">
+    <div class="menu-side">
+      <p class="eyebrow"><span id="menuVersion">Alpha</span> · MESBG-style rules <button class="linkbtn whatsnew" id="whatsNew" type="button">What's new</button></p>
+      <h1>Captain's School</h1>
+      <p class="lede">Learn the wargame rules one mission at a time. Each mission is built around one rule, and you only win once you understand it.</p>
+      <p class="scope" id="menuScope"></p>
+      <div class="next" id="menuNext"></div>
+      <button class="tbtn menu-close" id="menuClose" type="button" hidden>Back to the game</button>
+      <details class="how">
+        <summary>How to play</summary>
+        <ul>
+          <li><span>1</span><div>Pick a mission and read its rule cards.</div></li>
+          <li><span>2</span><div>Play on a table measured in inches. Hover over a target to see the rolls it needs, then watch the dice land in the tray. Zoom with the mouse wheel or the + button and drag the table to move the view.</div></li>
+          <li><span>3</span><div>Every rule in play has a chip: click it for a short explanation and a link to the Rules Manual. The first time a rule comes into play, a popup explains it.</div></li>
+        </ul>
+      </details>
+      <p class="fine"><button class="linkbtn" id="menuOptions" type="button">Options</button>: odds, the archer's ruler, dice, automatic steps and sound. <button class="linkbtn" id="lessonReset" type="button">Show the rule popups again</button>.</p>
+      <p class="fine">Unofficial fan project for personal use. Rules and profiles follow the 2024 Middle-earth Strategy Battle Game Rules Manual and army lists; this is an alpha version, so expect rough edges (see What's new for the known issues). Rule links open the copy at <a href="https://prancingponypub.ru/mesbg2024/rules_manual/" target="_blank" rel="noopener">prancingponypub.ru</a>.</p>
+    </div>
+    <ol class="mlist" id="mlist"></ol>
+  </div>
+</div>
+
+<div class="scrim" id="options" hidden>
+  <div class="dialog options" role="dialog" aria-modal="true" aria-labelledby="optTitle">
+    <p class="eyebrow">Settings · kept in this browser</p>
+    <h2 id="optTitle">Options</h2>
+    <div class="opt-cols">
+      <section class="opt-group" role="radiogroup" aria-labelledby="detailH">
+        <h3 id="detailH">Detail</h3>
+        <label class="opt"><input type="radio" name="detail" value="guided"><span>Guided</span><small>Panels you do not need yet stay folded or hidden, such as the To Wound chart until a mission teaches it. Best while you learn the rules.</small></label>
+        <label class="opt"><input type="radio" name="detail" value="standard"><span>Standard</span><small>Panels open as soon as a mission has taught what they show.</small></label>
+        <label class="opt"><input type="radio" name="detail" value="full"><span>Full table</span><small>Every panel open from the start, in every mission, as at the table.</small></label>
+      </section>
+      <section class="opt-group">
+        <h3>Table</h3>
+        <label class="opt"><input type="checkbox" id="oddsOpt"><span>Show odds</span><small>The chance to win each fight and to wound with each shot, in percent, on the table and in the panel.</small></label>
+        <label class="opt"><input type="checkbox" id="rulerOpt"><span>Archer's ruler</span><small>While you move a model with a bow, lines of fire from the spot you point at: which enemies it could shoot from there, what is In The Way, and whether the move leaves it able to shoot at all.</small></label>
+      </section>
+      <section class="opt-group">
+        <h3>Dice</h3>
+        <label class="opt"><input type="checkbox" id="trayOne"><span>One by one</span><small>Throw your dice one at a time, with the Throw button or a click on the tray. Untick to throw them all at once.</small></label>
+        <label class="opt"><input type="checkbox" id="trayAnim"><span>Rolling animation</span><small>The dice tumble before they land.</small></label>
+        <label class="opt"><input type="checkbox" id="autoRollOpt"><span>Auto roll</span><small>No Roll button: every roll is thrown as soon as it is due, all the dice at once, and a banner re-roll picks your best dice by itself. You still choose the order of Combats, Shielding and where Strikes go.</small></label>
+      </section>
+      <section class="opt-group">
+        <h3>Let the app decide</h3>
+        <p class="opt-note">Once a mission has taught a rule, you play it by hand. These hand single steps back to the app, which plays them the way it does before they are taught.</p>
+        <label class="opt"><input type="checkbox" id="autoPairOpt"><span>Auto Pair Off</span><small>When you have Priority, the app splits the fights into Combats (and picks their order) for you.</small></label>
+        <label class="opt"><input type="checkbox" id="autoBackOpt"><span>Auto Back Away</span><small>The app picks where your losers Back Away, and whether a friend Makes Way for them.</small></label>
+        <label class="opt"><input type="checkbox" id="autoWayOpt"><span>Auto Make Way</span><small>You pick the spot to Back Away to while free spots exist; when only a friend stepping aside would make room, the app does that for you.</small></label>
+        <label class="opt"><input type="checkbox" id="autoplayOpt"><span>AI plays for you</span><small>The computer takes every decision for your side: Priority, moves, shooting, Pairing Off, the order of Combats, Shielding, Back Away, Strikes and re-rolls. Untick it (or press the tag at the top) at any time to take over.</small></label>
+      </section>
+      <section class="opt-group">
+        <h3>Sound</h3>
+        <label class="opt"><input type="checkbox" id="musicOpt"><span>Music</span><small>The soundtrack, generated in the browser.</small></label>
+        <label class="opt"><input type="checkbox" id="sfxOpt"><span>Sounds</span><small>Dice, arrows, blades, horns.</small></label>
+      </section>
+    </div>
+    <div class="dlg-actions"><button class="act" id="optClose" type="button">Done</button></div>
+  </div>
+</div>
+
+<div class="scrim lesson-scrim" id="lesson" hidden><div class="dialog lesson" id="lessonBox" role="dialog" aria-modal="true" aria-labelledby="lessonTitle"></div></div>
+
+<div class="scrim" id="modal" hidden><div class="dialog" id="dialog" role="dialog" aria-modal="true"></div></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
