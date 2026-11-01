@@ -1,9 +1,27 @@
-# Captain's School (MESBGPC)
+# Captain's School: learn to play Middle-earth Strategy Battle Game (MESBG 2024)
 
-A PC game (alpha, version 0.6.0-alpha.2) that teaches the rules of a Middle-earth Strategy Battle Game style wargame, one rule per mission.
-Unofficial fan project. Rules follow the 2024 core rules and were checked against the 2024 Rules Manual; in-game rule
-links point to the copy at https://prancingponypub.ru/mesbg2024/rules_manual/. Units are real 2024 profiles in the 2024
-layout (MV FV SV S D A W C I); see Balance below for where they come from.
+**A free browser game that teaches the rules of the current edition of Middle-earth Strategy Battle Game (MESBG,
+the 2024 Rules Manual with the latest FAQ and errata), one rule per mission.** Move, Control Zones, Charges, shooting and
+In The Way, Duel Rolls, To Wound, Backing Away and Trapped, spears and Supporting, Courage, Heroes with Might, Will and Fate,
+Heroic Actions, cavalry, Monsters and Magic: each mission teaches one rule on a real battlefield against the computer, with
+the dice, the odds and the rule text right beside the board.
+
+- **Play in the browser:** https://bagosz.github.io/captains-school/
+- **Download (one HTML file, works offline, open it by double-click):**
+  https://github.com/bagosz/captains-school/releases/latest/download/captains-school.html
+- All versions and release notes: https://github.com/bagosz/captains-school/releases
+
+Who it is for: new players learning MESBG before their first game, players coming back from an older edition who want
+the 2024 changes, and anyone who wants to check how a rule plays out (Who wins a Duel Roll? When does a model Back Away?
+What is In The Way?). Units are real 2024 profiles (MV FV SV S D A W C I, Might/Will/Fate) from Rohan, Gondor, the Hill
+Tribes, Isengard and Mordor; the Battle of Edoras starter scenarios are in too, and Matched Play battles use every 2024
+army list the game can play, with points and special rules.
+
+In-game rule links point to the fan copy of the Rules Manual at https://prancingponypub.ru/mesbg2024/rules_manual/.
+Unofficial fan project, alpha (version 0.6.0-alpha.2): see the disclaimer at the end. Bugs and rule questions: open an issue.
+
+Also known as: MESBG rules trainer, MESBG tutorial, Middle-earth SBG rules practice, Lord of the Rings wargame rules,
+learn to play Middle-earth Strategy Battle Game.
 
 Custom token art (for example photos of your own painted miniatures) goes in `assets/tokens/`; see the README there.
 
